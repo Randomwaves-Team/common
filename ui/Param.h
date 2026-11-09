@@ -1,0 +1,74 @@
+#ifndef __UI_PARAM_H
+#define __UI_PARAM_H
+
+// Menu parameters (docs/shared/common-code.md, step C). A menu page is 8 parameter ids (one per tab / encoder)
+// and a ParamSource that owns the values. ParamDef is a const table in Flash: header, unit, range and flags.
+// The tab rules of docs/shared/ui-language.md live here and in TabStrip, not in each menu:
+// - value bar only on amount values: !PARAM_LIST && max - min >= kMenuBarMinSteps; bipolar when zero >= 0
+// - encoder step: clamp at min / max, or wrap with PARAM_WRAP
+
+#include <stdint.h>
+
+#include "ui/Layout.h"
+
+namespace ui {
+
+const uint8_t kNoParam                              = 0xFF;     // empty tab
+
+enum ParamFlags : uint8_t {
+    PARAM_WRAP                                      = 0x01,     // step past max -> min (lists, ON / OFF)
+    PARAM_LIST                                      = 0x02,     // list / identity value: no bar even with >= 12 steps
+    PARAM_ALT                                       = 0x04      // ADD + encoder changes a 2nd value (LFO / MOD assignment, EQ frequency ...)
+};
+
+struct ParamDef {
+    const char* header;                             // 10 characters, no abbreviations
+    const char* unit;                               // 3 characters, sign row right (CYAN); ParamSource::unit() may vary it
+    int16_t min;
+    int16_t max;
+    int16_t zero;                                   // >= 0: bipolar bar filled from this value; -1: from min
+    uint8_t flags;                                  // ParamFlags
+};
+
+inline bool paramHasBar(const ParamDef& d) { return !(d.flags & PARAM_LIST) && ((d.max - d.min) >= kMenuBarMinSteps); }
+
+// One encoder detent: clamp, or wrap with PARAM_WRAP.
+inline int16_t paramStep(const ParamDef& d, int16_t value, int8_t dir) {
+    int16_t v = value + dir;
+    if (v > d.max) return (d.flags & PARAM_WRAP) ? d.min : d.max;
+    if (v < d.min) return (d.flags & PARAM_WRAP) ? d.max : d.min;
+    return v;
+}
+
+// Owner of the values of a page (product side: a module adapter of the Controller).
+class ParamSource {
+   public:
+    virtual ~ParamSource() {}
+
+    virtual const ParamDef& def(uint8_t id) const = 0;
+    virtual int16_t get(uint8_t id) const = 0;
+    virtual void set(uint8_t id, int16_t value) = 0;                    // applies the value (audio, file, other screens)
+    virtual void format(uint8_t id, int16_t value, char text[11]) const = 0;  // 10 characters, right aligned (space padded)
+    virtual const char* unit(uint8_t id, int16_t value) const { return def(id).unit; }
+
+    // ADD 2nd value, shown left aligned under the header on the sign row (Font_05x07). color: GRAY_75 when set,
+    // GRAY_50 when unassigned ("LFO --"). Only for PARAM_ALT parameters.
+    virtual bool alt(uint8_t id, char label[11], uint16_t& color) const { return false; }
+    virtual void stepAlt(uint8_t id, int8_t dir) {}
+
+    // One encoder detent on a parameter; no set() when the value does not change (at a clamp).
+    void step(uint8_t id, int8_t dir) {
+        const int16_t v = get(id);
+        const int16_t n = paramStep(def(id), v, dir);
+        if (n != v) set(id, n);
+    }
+};
+
+struct Page {
+    uint8_t param[8];                               // tab 0-3 top row, 4-7 bottom row; kNoParam = empty
+    ParamSource* src;
+};
+
+}  // namespace ui
+
+#endif

@@ -1,0 +1,215 @@
+#include "TabStrip.h"
+
+#include <string.h>
+
+namespace ui {
+
+static const char kBlank10[] = "          ";
+
+TabStrip::TabStrip(Lcd& lcd) : lcd_(lcd), sweep_(false), opened_(nullptr) {
+    for (uint8_t i = 0; i < 8; i++) {
+        bar_[i].drawn = false;
+        bar_[i].touched = false;
+        bar_[i].x0 = 0;
+        bar_[i].x1 = 0;
+        bar_[i].zero = -1;
+    }
+    memset(tab_, 0, sizeof(tab_));
+}
+
+/* Value bars ----------------------------------------------------------------*/
+
+void TabStrip::segment(uint8_t tab, int16_t x0, int16_t x1, RGB16Color color) {
+    // Bar columns [x0, x1) of one tab, relative to the bar start.
+    if (x1 <= x0) return;
+    lcd_.setForeColor(color);
+    lcd_.fillRect(kMenuHeaderX[tab] + x0, kMenuDataY[tab] + kMenuBarOffsetY, x1 - x0, kMenuBarHeight);
+}
+
+bool TabStrip::clearBar(uint8_t tab) {
+    if (tab > 7) return false;
+    bar_[tab].touched = true;
+    if (!bar_[tab].drawn) return false;
+    lcd_.setBackColor(BLACK);
+    lcd_.clearRect(kMenuHeaderX[tab], kMenuDataY[tab] + kMenuBarOffsetY - 2, kMenuBarWidth, kMenuBarHeight + 4);
+    bar_[tab].drawn = false;
+    bar_[tab].zero = -1;
+    return true;
+}
+
+void TabStrip::drawBar(uint8_t tab, int16_t value, int16_t lo, int16_t hi, int16_t zero) {
+    if (tab > 7) return;
+    BarState& st = bar_[tab];
+    st.touched = true;
+
+    // 1. FILL INTERVAL [a, b)
+    const int16_t range = hi - lo;
+    if (range <= 0) return;
+    if (value < lo) value = lo;
+    if (value > hi) value = hi;
+    int16_t xv = (int16_t)(((int32_t)kMenuBarWidth * (value - lo) + (range / 2)) / range);
+    int16_t xz = -1;
+    int16_t a, b;
+    if (zero >= 0) {
+        xz = (int16_t)(((int32_t)kMenuBarWidth * (zero - lo) + (range / 2)) / range);
+        a = (xv < xz) ? xv : xz;
+        b = (xv < xz) ? xz : xv;
+    } else {
+        a = 0;
+        b = (xv < 1) ? 1 : xv;
+    }
+
+    // 2. DRAW: full on first draw, otherwise only the difference to the previous interval
+    if (!st.drawn) {
+        segment(tab, 0, kMenuBarWidth, GRAY_25);
+        segment(tab, a, b, CYAN);
+    } else {
+        const int16_t oa = st.x0;
+        const int16_t ob = st.x1;
+        // new \ old -> CYAN
+        segment(tab, a, (b < oa) ? b : oa, CYAN);
+        segment(tab, (a > ob) ? a : ob, b, CYAN);
+        // old \ new -> GRAY_25
+        segment(tab, oa, (ob < a) ? ob : a, GRAY_25);
+        segment(tab, (oa > b) ? oa : b, ob, GRAY_25);
+    }
+
+    // 3. ZERO TICK (bipolar): 7 px GRAY_50, the fill covers it inside the bar when it starts there.
+    // A tick left at another place (other menu / range) is removed without blacking out the bar.
+    const int16_t oz = st.zero;
+    const uint16_t barX = kMenuHeaderX[tab];
+    const uint16_t barY = kMenuDataY[tab] + kMenuBarOffsetY;
+    if ((oz >= 0) && (oz != xz)) {
+        lcd_.setBackColor(BLACK);
+        lcd_.clearRect(barX + oz, barY - 2, 1, 2);
+        lcd_.clearRect(barX + oz, barY + kMenuBarHeight, 1, 2);
+        segment(tab, oz, oz + 1, ((oz >= a) && (oz < b)) ? CYAN : GRAY_25);
+    }
+    if (xz >= 0) {
+        if (oz != xz) {
+            lcd_.setForeColor(GRAY_50);
+            lcd_.drawVLine(barX + xz, barY - 2, kMenuBarHeight + 4);
+        }
+        segment(tab, xz, xz + 1, ((xz >= a) && (xz < b)) ? CYAN : GRAY_50);
+    }
+
+    st.x0 = a;
+    st.x1 = b;
+    st.zero = xz;
+    st.drawn = true;
+}
+
+void TabStrip::forgetBars(uint8_t firstTab, uint8_t lastTab) {
+    for (uint8_t i = firstTab; (i <= lastTab) && (i < 8); i++) {
+        bar_[i].drawn = false;
+        bar_[i].zero = -1;
+    }
+}
+
+void TabStrip::clearBars() {
+    for (uint8_t i = 0; i < 8; i++) {
+        const bool touched = bar_[i].touched;
+        clearBar(i);
+        bar_[i].touched = touched;
+    }
+}
+
+void TabStrip::beginMenu() {
+    for (uint8_t i = 0; i < 8; i++) bar_[i].touched = false;
+    sweep_ = true;
+    opened_ = nullptr;
+}
+
+void TabStrip::sweepBars() {
+    if (!sweep_) return;
+    sweep_ = false;
+    for (uint8_t i = 0; i < 8; i++) {
+        if (bar_[i].drawn && !bar_[i].touched) {
+            clearBar(i);
+            bar_[i].touched = false;
+        }
+    }
+}
+
+/* Pages ---------------------------------------------------------------------*/
+
+void TabStrip::text(uint8_t tab, const char* s, RGB16Color color, LcdFont font, LcdAlign align, uint16_t len, uint16_t x, uint16_t y) {
+    lcd_.setForeColor(color);
+    lcd_.setBackColor(BLACK);
+    lcd_.setFont(font);
+    lcd_.setAlignment(align);
+    lcd_.drawText(s, len, x, y);
+}
+
+void TabStrip::open(const Page& page) {
+    opened_ = &page;
+    for (uint8_t t = 0; t < 8; t++) {
+        const uint8_t id = page.param[t];
+        const char* header = (id == kNoParam) ? kBlank10 : page.src->def(id).header;
+        text(t, header, CYAN, FONT_07x09, LEFT, kMenuHeaderTextSize, kMenuHeaderX[t], kMenuHeaderY[t]);
+    }
+    for (uint8_t t = 0; t < 8; t++) drawTab(page, t, true);
+}
+
+void TabStrip::refresh(const Page& page) {
+    if (opened_ != &page) return;
+    for (uint8_t t = 0; t < 8; t++) drawTab(page, t, false);
+}
+
+void TabStrip::drawTab(const Page& page, uint8_t t, bool force) {
+    TabCache& c = tab_[t];
+    const uint8_t id = page.param[t];
+
+    if (id == kNoParam) {
+        if (force) {
+            clearBar(t);
+            text(t, "   ", CYAN, FONT_05x07, RIGHT, kMenuSignTextSize, kMenuSignBoxX[t], kMenuSignBoxY[t]);
+            text(t, kBlank10, WHITE, FONT_07x09, RIGHT, kMenuDataTextSize, kMenuDataX[t], kMenuDataY[t]);
+        }
+        return;
+    }
+
+    const ParamDef& d = page.src->def(id);
+    const int16_t v = page.src->get(id);
+
+    if (force || (v != c.value)) {
+        // bar (or none) first, then unit and value, as the menus always drew them
+        if (paramHasBar(d)) {
+            drawBar(t, v, d.min, d.max, d.zero);
+        } else {
+            clearBar(t);
+        }
+
+        const char* u = page.src->unit(id, v);
+        if (force || (strncmp(u, c.unit, 3) != 0)) {
+            text(t, u, CYAN, FONT_05x07, RIGHT, kMenuSignTextSize, kMenuSignBoxX[t], kMenuSignBoxY[t]);
+            strncpy(c.unit, u, 3);
+            c.unit[3] = '\0';
+        }
+
+        char s[11];
+        memset(s, ' ', 10);
+        s[10] = '\0';
+        page.src->format(id, v, s);
+        if (force || (strncmp(s, c.text, 10) != 0)) {
+            text(t, s, WHITE, FONT_07x09, RIGHT, kMenuDataTextSize, kMenuDataX[t], kMenuDataY[t]);
+            memcpy(c.text, s, 11);
+        }
+        c.value = v;
+    }
+
+    // ADD 2nd value: left aligned under the header on the sign row
+    if (d.flags & PARAM_ALT) {
+        char label[11];
+        memset(label, ' ', 10);
+        label[10] = '\0';
+        uint16_t color = GRAY_50;
+        if (page.src->alt(id, label, color) && (force || (strncmp(label, c.alt, 10) != 0) || (color != c.altColor))) {
+            text(t, label, color, FONT_05x07, LEFT, kMenuHeaderTextSize, kMenuHeaderX[t], kMenuSignBoxY[t]);
+            memcpy(c.alt, label, 11);
+            c.altColor = color;
+        }
+    }
+}
+
+}  // namespace ui

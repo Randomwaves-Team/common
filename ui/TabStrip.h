@@ -55,6 +55,7 @@ class TabStrip {
     };
     struct TabCache {
         const char* header;
+        uint16_t headerColor;
         bool bar;                           // bar parameters below are valid
         int16_t value, lo, hi, zero;
         char text[11];

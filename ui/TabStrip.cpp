@@ -164,6 +164,7 @@ void TabStrip::drawTab(const Page& page, uint8_t t, bool force) {
             text(t, "   ", CYAN, FONT_05x07, RIGHT, kMenuSignTextSize, kMenuSignBoxX[t], kMenuSignBoxY[t]);
             text(t, kBlank10, WHITE, FONT_07x09, RIGHT, kMenuDataTextSize, kMenuDataX[t], kMenuDataY[t]);
             c.header = kBlank10;
+            c.headerColor = CYAN;
             c.bar = false;
         }
         return;
@@ -175,9 +176,11 @@ void TabStrip::drawTab(const Page& page, uint8_t t, bool force) {
 
     // header
     const char* h = src.header(id);
-    if (force || (h != c.header)) {
-        text(t, h, CYAN, FONT_07x09, LEFT, kMenuHeaderTextSize, kMenuHeaderX[t], kMenuHeaderY[t]);
+    const uint16_t hcolor = src.headerColor(id);
+    if (force || (h != c.header) || (hcolor != c.headerColor)) {
+        text(t, h, hcolor, FONT_07x09, LEFT, kMenuHeaderTextSize, kMenuHeaderX[t], kMenuHeaderY[t]);
         c.header = h;
+        c.headerColor = hcolor;
     }
 
     // value bar (or none)

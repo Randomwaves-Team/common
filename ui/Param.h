@@ -58,6 +58,8 @@ class ParamSource {
     virtual uint16_t unitColor(uint8_t id, int16_t value) const { return 0x07FF; }
     // Header when it depends on the state (EFFECT A-D per type); default: the table.
     virtual const char* header(uint8_t id) const { return def(id).header; }
+    // Header color: CYAN, or GRAY_50 for a tab whose function is switched off (GLOBAL encoder set to OFF).
+    virtual uint16_t headerColor(uint8_t id) const { return 0x07FF; }
     // Value color (RGB565): WHITE, or GRAY_50 when the value does not apply (e.g. PPQN while SYNC is off).
     virtual uint16_t valueColor(uint8_t id, int16_t value) const { return 0xFFFF; }
     // Small label right of the header (Font_05x07, right aligned at the text box: "MUTE", "LOCK", "SLAVE").

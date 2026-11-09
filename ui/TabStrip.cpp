@@ -143,11 +143,6 @@ void TabStrip::text(uint8_t tab, const char* s, RGB16Color color, LcdFont font, 
 
 void TabStrip::open(const Page& page) {
     opened_ = &page;
-    for (uint8_t t = 0; t < 8; t++) {
-        const uint8_t id = page.param[t];
-        const char* header = (id == kNoParam) ? kBlank10 : page.src->def(id).header;
-        text(t, header, CYAN, FONT_07x09, LEFT, kMenuHeaderTextSize, kMenuHeaderX[t], kMenuHeaderY[t]);
-    }
     for (uint8_t t = 0; t < 8; t++) drawTab(page, t, true);
 }
 
@@ -162,40 +157,78 @@ void TabStrip::drawTab(const Page& page, uint8_t t, bool force) {
 
     if (id == kNoParam) {
         if (force) {
+            text(t, kBlank10, CYAN, FONT_07x09, LEFT, kMenuHeaderTextSize, kMenuHeaderX[t], kMenuHeaderY[t]);
             clearBar(t);
             text(t, "   ", CYAN, FONT_05x07, RIGHT, kMenuSignTextSize, kMenuSignBoxX[t], kMenuSignBoxY[t]);
             text(t, kBlank10, WHITE, FONT_07x09, RIGHT, kMenuDataTextSize, kMenuDataX[t], kMenuDataY[t]);
+            c.header = kBlank10;
+            c.bar = false;
         }
         return;
     }
 
-    const ParamDef& d = page.src->def(id);
-    const int16_t v = page.src->get(id);
+    const ParamSource& src = *page.src;
+    const ParamDef& d = src.def(id);
+    const int16_t v = src.get(id);
 
-    if (force || (v != c.value)) {
-        // bar (or none) first, then unit and value, as the menus always drew them
-        if (paramHasBar(d)) {
+    // header
+    const char* h = src.header(id);
+    if (force || (h != c.header)) {
+        text(t, h, CYAN, FONT_07x09, LEFT, kMenuHeaderTextSize, kMenuHeaderX[t], kMenuHeaderY[t]);
+        c.header = h;
+    }
+
+    // value bar (or none)
+    if (paramHasBar(d)) {
+        if (force || !c.bar || (v != c.value) || (d.min != c.lo) || (d.max != c.hi) || (d.zero != c.zero)) {
             drawBar(t, v, d.min, d.max, d.zero);
-        } else {
-            clearBar(t);
+            c.bar = true;
+            c.value = v;
+            c.lo = d.min;
+            c.hi = d.max;
+            c.zero = d.zero;
         }
+    } else if (force || c.bar) {
+        clearBar(t);
+        c.bar = false;
+    }
 
-        const char* u = page.src->unit(id, v);
-        if (force || (strncmp(u, c.unit, 3) != 0)) {
-            text(t, u, CYAN, FONT_05x07, RIGHT, kMenuSignTextSize, kMenuSignBoxX[t], kMenuSignBoxY[t]);
-            strncpy(c.unit, u, 3);
-            c.unit[3] = '\0';
-        }
+    // unit
+    const char* u = src.unit(id, v);
+    if (force || (strncmp(u, c.unit, 3) != 0)) {
+        text(t, u, CYAN, FONT_05x07, RIGHT, kMenuSignTextSize, kMenuSignBoxX[t], kMenuSignBoxY[t]);
+        strncpy(c.unit, u, 3);
+        c.unit[3] = '\0';
+    }
 
-        char s[11];
-        memset(s, ' ', 10);
-        s[10] = '\0';
-        page.src->format(id, v, s);
-        if (force || (strncmp(s, c.text, 10) != 0)) {
-            text(t, s, WHITE, FONT_07x09, RIGHT, kMenuDataTextSize, kMenuDataX[t], kMenuDataY[t]);
-            memcpy(c.text, s, 11);
+    // value
+    char s[11];
+    memset(s, ' ', 10);
+    s[10] = '\0';
+    uint8_t len = src.format(id, v, s);
+    if (len > 10) len = 10;
+    const uint16_t color = src.valueColor(id, v);
+    if (force || (len != c.textLen) || (color != c.textColor) || (memcmp(s, c.text, len) != 0)) {
+        text(t, s, color, FONT_07x09, RIGHT, len, kMenuDataX[t], kMenuDataY[t]);
+        memcpy(c.text, s, 11);
+        c.textLen = len;
+        c.textColor = color;
+    }
+
+    // badge right of the header
+    char b[9];
+    memset(b, ' ', 8);
+    b[8] = '\0';
+    uint8_t blen = 0;
+    uint16_t bcolor = BLACK;
+    if (src.badge(id, b, blen, bcolor)) {
+        if (blen > 8) blen = 8;
+        if (force || (blen != c.badgeLen) || (bcolor != c.badgeColor) || (memcmp(b, c.badge, blen) != 0)) {
+            text(t, b, bcolor, FONT_05x07, RIGHT, blen, kMenuTextBoxX[t], kMenuTextBoxY[t]);
+            memcpy(c.badge, b, 9);
+            c.badgeLen = blen;
+            c.badgeColor = bcolor;
         }
-        c.value = v;
     }
 
     // ADD 2nd value: left aligned under the header on the sign row
@@ -203,11 +236,11 @@ void TabStrip::drawTab(const Page& page, uint8_t t, bool force) {
         char label[11];
         memset(label, ' ', 10);
         label[10] = '\0';
-        uint16_t color = GRAY_50;
-        if (page.src->alt(id, label, color) && (force || (strncmp(label, c.alt, 10) != 0) || (color != c.altColor))) {
-            text(t, label, color, FONT_05x07, LEFT, kMenuHeaderTextSize, kMenuHeaderX[t], kMenuSignBoxY[t]);
+        uint16_t acolor = GRAY_50;
+        if (src.alt(id, label, acolor) && (force || (acolor != c.altColor) || (strncmp(label, c.alt, 10) != 0))) {
+            text(t, label, acolor, FONT_05x07, LEFT, kMenuHeaderTextSize, kMenuHeaderX[t], kMenuSignBoxY[t]);
             memcpy(c.alt, label, 11);
-            c.altColor = color;
+            c.altColor = acolor;
         }
     }
 }

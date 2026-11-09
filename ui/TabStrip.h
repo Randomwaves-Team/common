@@ -7,9 +7,9 @@
 // - Value bars, used by every menu: 56 x 3 px CYAN over GRAY_25 under the value, bipolar values fill from a GRAY_50
 //   zero tick; only the changed columns are written. After a menu change (beginMenu) the bars the new menu does not
 //   draw are blacked out by sweepBars() in the main loop.
-// - Pages: open() draws a Page (headers, values, units, bars, ADD labels); refresh() in the main loop compares the
-//   values with what is on screen and redraws only the tabs that changed, so changes from encoders, GLOBAL, MIDI or
-//   file loads need no drawing hooks.
+// - Pages: open() draws a Page (headers, values, units, bars, badges, ADD labels); refresh() in the main loop builds
+//   the same items again, compares them with what is on screen and redraws only what changed, so changes from
+//   encoders, GLOBAL, MIDI, sync or file loads need no drawing hooks.
 // The select arrow (FILE / DRUMKIT lists) stays in the product: it is an image loaded from the SD card.
 
 #include <stdint.h>
@@ -54,11 +54,18 @@ class TabStrip {
         int16_t zero;                       // zero tick x (-1 = none)
     };
     struct TabCache {
-        int16_t value;
+        const char* header;
+        bool bar;                           // bar parameters below are valid
+        int16_t value, lo, hi, zero;
         char text[11];
+        uint8_t textLen;
+        uint16_t textColor;
         char unit[4];
         char alt[11];
         uint16_t altColor;
+        char badge[9];
+        uint8_t badgeLen;
+        uint16_t badgeColor;
     };
 
     Lcd& lcd_;

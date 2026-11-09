@@ -48,8 +48,17 @@ class ParamSource {
     virtual const ParamDef& def(uint8_t id) const = 0;
     virtual int16_t get(uint8_t id) const = 0;
     virtual void set(uint8_t id, int16_t value) = 0;                    // applies the value (audio, file, other screens)
-    virtual void format(uint8_t id, int16_t value, char text[11]) const = 0;  // 10 characters, right aligned (space padded)
+    // Value text, right aligned at the value position; returns its length (10 = whole field, padded with spaces;
+    // shorter texts leave the left part of the field as it is).
+    virtual uint8_t format(uint8_t id, int16_t value, char text[11]) const = 0;
     virtual const char* unit(uint8_t id, int16_t value) const { return def(id).unit; }
+    // Header when it depends on the state (EFFECT A-D per type); default: the table.
+    virtual const char* header(uint8_t id) const { return def(id).header; }
+    // Value color (RGB565): WHITE, or GRAY_50 when the value does not apply (e.g. PPQN while SYNC is off).
+    virtual uint16_t valueColor(uint8_t id, int16_t value) const { return 0xFFFF; }
+    // Small label right of the header (Font_05x07, right aligned at the text box: "MUTE", "LOCK", "SLAVE").
+    // An "off" label is returned in BLACK so the cell is erased. len <= 8.
+    virtual bool badge(uint8_t id, char text[9], uint8_t& len, uint16_t& color) const { return false; }
 
     // ADD 2nd value, shown left aligned under the header on the sign row (Font_05x07). color: GRAY_75 when set,
     // GRAY_50 when unassigned ("LFO --"). Only for PARAM_ALT parameters.

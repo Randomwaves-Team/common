@@ -120,7 +120,7 @@ const uint16_t kPanelGraphX1                        = 903;
 const uint16_t kPanelGraphY0                        = 192;                      // layer 02 bottom line
 const uint16_t kPanelGraphY1                        = 378;                      // layer 08 bottom line
 
-// Graph geometry, axes and drawing of the panel contents: common/panel/Panel.h / Panel.cpp.
+// Graph geometry, axes and drawing of the panel contents: common/panel (Panel.h, Graph.h, *Graph.cpp).
 const uint16_t kPanelInfoY                          = 172;                      // = kLayerTextY[1] (layer 02 text row)
 const uint16_t kPanelInfoSubGapX                    = 12;                       // gap between title and type text
 const uint16_t kPanelInfoValueX                     = 903;                      // right-aligned value

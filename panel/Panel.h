@@ -8,6 +8,10 @@
 // The caller describes the panel with a View (plain numbers and short strings, already converted
 // from the firmware tables); the renderer draws it and, on later calls, rewrites only the pixels
 // that changed (old and new column colors are composed and compared).
+//
+// What a kind draws (labels, info row, columns) is a Graph (Graph.h): the shared kinds are in this
+// folder (FilterGraph ... SyncGraph), product kinds live in the product and are passed to the
+// Renderer as a GraphList (Drumboy: INST, SYNTH in Core/Library/Panel).
 
 #include <stdint.h>
 
@@ -59,6 +63,9 @@ class Surface {
     virtual void text(Font font, Align align, Color color, const char* text, uint16_t len, int16_t x, int16_t y) = 0;
 };
 
+// Kinds drawn by the shared graphs (common/panel/*Graph). Numbers not listed here are free for
+// product kinds (Drumboy: 7 INST, 8 SYNTH); new product kinds start at KIND_PRODUCT. A product
+// passes its graphs to the Renderer in a GraphList (below).
 enum Kind : uint8_t {
     KIND_NONE = 0,
     KIND_FILTER = 1,
@@ -67,11 +74,11 @@ enum Kind : uint8_t {
     KIND_MIXER = 4,
     KIND_LFO = 5,
     KIND_EFFECT = 6,
-    KIND_INST = 7,
-    KIND_SYNTH = 8,
     KIND_RHYTHM = 9,
     KIND_METRO = 10,
-    KIND_SYNC = 11
+    KIND_SYNC = 11,
+    KIND_SHARED_END = 12,   // shared kinds are < KIND_SHARED_END
+    KIND_PRODUCT = 16
 };
 
 enum FilterShape : uint8_t { FILTER_LP = 1, FILTER_HP = 2, FILTER_BP = 3, FILTER_BS = 4 };
@@ -141,36 +148,8 @@ struct LfoView {
 struct EffectView {
     uint8_t active;
     uint8_t type;           // EffectType
-    float a, b, c, d;       // physical values, see Panel.cpp (per type)
+    float a, b, c, d;       // physical values, see EffectGraph.cpp (per type)
     float mix;              // 0..1
-};
-
-struct InstView {
-    uint8_t hasSample;
-    uint8_t reverse;        // DIRECTION BACK / PONG: waveform drawn reversed
-    float level;            // 0..1
-    float start;            // 0..1
-    float end;              // 0..1
-    float attack;           // fade-in, fraction of START-END (0 = OFF)
-    float decay;            // fade-out at the end, fraction of START-END (0 = OFF)
-    float lengthMs;         // START-END play time
-    uint8_t peaks[60];      // sample peaks 0..30 (firmware graphData)
-};
-
-// SYNTH A / B (UI_REDESIGN.md "SYNTH A / SYNTH B"): a drawing model of the sound, not the DSP.
-enum SynthEngine : uint8_t {
-    SY_KICK = 0, SY_SNARE = 1, SY_TOM = 2, SY_HAT = 3, SY_CLAP = 4,          // DRUM
-    SY_ANALOG = 5, SY_FM = 6, SY_AM = 7, SY_FOLD = 8, SY_PLUCK = 9          // MELODIC
-};
-
-struct SynthView {
-    uint8_t engine;         // SynthEngine (kind = engine >= SY_ANALOG)
-    float a, b, c, d;       // PCT 0..1, BIPCT -0.5..0.5, WAVE index, RATIO value, CENT value
-    float noteHz;
-    float attackMs;
-    float decayMs;
-    float level;            // 0..1
-    uint16_t windowMs;      // DRUM: graph length (ms, from a fixed list); MELODIC: 0 = first 8 periods
 };
 
 // RHYTHM / METRONOME / SYNC (UI_REDESIGN.md 6)
@@ -205,29 +184,63 @@ struct SyncView {
     uint16_t tempo10;       // BPM x 10 (measured when SLAVE)
 };
 
+// Raw bytes for product kinds (Drumboy InstView / SynthView): products keep their view structs
+// in their own code and reach them with productView<T>(v). Raise it when a product view grows.
+const uint16_t kProductViewBytes = 96;
+
 struct View {
-    uint8_t kind;           // Kind
+    uint8_t kind;           // Kind (or a product kind)
     char title[12];         // "FILTER 1"
     char name1[12];         // table names used in the info row (type, rate ...)
     char name2[12];
-    FilterView filter;
-    EqView eq;
-    ReverbView reverb;
-    MixerView mixer;
-    LfoView lfo;
-    EffectView effect;
-    InstView inst;
-    SynthView synth;
-    RhythmView rhythm;
-    MetroView metro;
-    SyncView sync;
+    union {                 // only the member of 'kind' is used; clearView zeroes all of it
+        FilterView filter;
+        EqView eq;
+        ReverbView reverb;
+        MixerView mixer;
+        LfoView lfo;
+        EffectView effect;
+        RhythmView rhythm;
+        MetroView metro;
+        SyncView sync;
+        uint8_t product[kProductViewBytes];
+    };
 };
+
+// Typed access to the product block (T: plain struct, all zero after clearView)
+template <typename T>
+inline T& productView(View& v) {
+    static_assert(sizeof(T) <= kProductViewBytes, "product view larger than kProductViewBytes");
+    static_assert(alignof(T) <= alignof(View), "product view alignment");
+    return *reinterpret_cast<T*>(v.product);
+}
+
+template <typename T>
+inline const T& productView(const View& v) {
+    static_assert(sizeof(T) <= kProductViewBytes, "product view larger than kProductViewBytes");
+    static_assert(alignof(T) <= alignof(View), "product view alignment");
+    return *reinterpret_cast<const T*>(v.product);
+}
 
 void clearView(View& v);    // zero everything (also padding) before filling
 
+class Graph;
+
+// Product graphs: {kind, graph} pairs in Flash, given to the Renderer (no registration at run time).
+// A product kind must not use a shared Kind number (the shared graph would win).
+struct GraphEntry {
+    uint8_t kind;
+    const Graph* graph;
+};
+
+struct GraphList {
+    const GraphEntry* entries;
+    uint8_t count;
+};
+
 class Renderer {
    public:
-    explicit Renderer(Surface& surface) : surface_(surface), hasDrawn_(false) {}
+    explicit Renderer(Surface& surface, const GraphList* productGraphs = nullptr) : surface_(surface), product_(productGraphs), hasDrawn_(false) {}
 
     // Full draw on a cleared panel area (caller clears and draws the x 305 divider).
     void open(const View& v);
@@ -235,11 +248,14 @@ class Renderer {
     void update(const View& v);
     // True when v equals what is on screen (nothing to do).
     bool same(const View& v) const;
-    // True when v needs a full open (other kind, title or effect type: static labels change).
+    // True when v needs a full open (other kind, title or a graph's static labels change).
     bool needsReopen(const View& v) const;
+    // Graph of a kind: shared kinds first, then the product list (nullptr = nothing drawn).
+    const Graph* graphFor(uint8_t kind) const;
 
    private:
     Surface& surface_;
+    const GraphList* product_;
     View drawn_;
     bool hasDrawn_;
 

@@ -60,7 +60,9 @@ class TabStrip {
         char text[11];
         uint8_t textLen;
         uint16_t textColor;
-        char unit[4];
+        char unit[12];
+        uint8_t unitLen;
+        uint16_t unitColor;
         char alt[11];
         uint16_t altColor;
         char badge[9];

@@ -14,6 +14,7 @@
 namespace ui {
 
 const uint8_t kNoParam                              = 0xFF;     // empty tab
+const uint8_t kFreeTab                              = 0xFE;     // tab area drawn by the product (e.g. the SONG fill graph): TabStrip leaves it alone
 
 enum ParamFlags : uint8_t {
     PARAM_WRAP                                      = 0x01,     // step past max -> min (lists, ON / OFF)
@@ -51,7 +52,10 @@ class ParamSource {
     // Value text, right aligned at the value position; returns its length (10 = whole field, padded with spaces;
     // shorter texts leave the left part of the field as it is).
     virtual uint8_t format(uint8_t id, int16_t value, char text[11]) const = 0;
+    // Text right aligned at the end of the sign row: the unit (3 characters) or a longer detail up to 11 characters
+    // (INST sample format "44.1K-16-S", "READ ERROR"), in unitColor() (CYAN unless the menu says otherwise).
     virtual const char* unit(uint8_t id, int16_t value) const { return def(id).unit; }
+    virtual uint16_t unitColor(uint8_t id, int16_t value) const { return 0x07FF; }
     // Header when it depends on the state (EFFECT A-D per type); default: the table.
     virtual const char* header(uint8_t id) const { return def(id).header; }
     // Value color (RGB565): WHITE, or GRAY_50 when the value does not apply (e.g. PPQN while SYNC is off).

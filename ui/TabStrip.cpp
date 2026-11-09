@@ -155,6 +155,8 @@ void TabStrip::drawTab(const Page& page, uint8_t t, bool force) {
     TabCache& c = tab_[t];
     const uint8_t id = page.param[t];
 
+    if (id == kFreeTab) return;  // the product draws this tab area itself
+
     if (id == kNoParam) {
         if (force) {
             text(t, kBlank10, CYAN, FONT_07x09, LEFT, kMenuHeaderTextSize, kMenuHeaderX[t], kMenuHeaderY[t]);
@@ -195,10 +197,15 @@ void TabStrip::drawTab(const Page& page, uint8_t t, bool force) {
 
     // unit
     const char* u = src.unit(id, v);
-    if (force || (strncmp(u, c.unit, 3) != 0)) {
-        text(t, u, CYAN, FONT_05x07, RIGHT, kMenuSignTextSize, kMenuSignBoxX[t], kMenuSignBoxY[t]);
-        strncpy(c.unit, u, 3);
-        c.unit[3] = '\0';
+    uint8_t ulen = (uint8_t)strnlen(u, 11);
+    if (ulen < kMenuSignTextSize) ulen = kMenuSignTextSize;      // units are 3 characters (space padded)
+    const uint16_t ucolor = src.unitColor(id, v);
+    if (force || (ulen != c.unitLen) || (ucolor != c.unitColor) || (memcmp(u, c.unit, ulen) != 0)) {
+        text(t, u, ucolor, FONT_05x07, RIGHT, ulen, kMenuSignBoxX[t], kMenuSignBoxY[t]);
+        memcpy(c.unit, u, ulen);
+        c.unit[ulen] = '\0';
+        c.unitLen = ulen;
+        c.unitColor = ucolor;
     }
 
     // value

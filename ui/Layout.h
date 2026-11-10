@@ -1,7 +1,7 @@
 #ifndef __UI_LAYOUT_H
 #define __UI_LAYOUT_H
 
-// Screen layout shared by Drumboy Pro and Synthgirl Pro (960 x 540 landscape; docs/shared/ui-language.md "Yerleşim",
+// Screen layout shared by Drumboy Pro and Synthgirl Pro (960 x 540 landscape; docs/shared/ui-language.md "Layout",
 // docs/shared/common-code.md): menu tab strips (4 + 4 tabs), tab value bar, status box, center panel area.
 // Indices of the tab arrays: 0-3 top row, 4-7 bottom row (= encoders 1-8).
 

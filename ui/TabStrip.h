@@ -1,7 +1,7 @@
 #ifndef __UI_TAB_STRIP_H
 #define __UI_TAB_STRIP_H
 
-// The 8 menu tabs (4 top, 4 bottom; docs/shared/ui-language.md "Sekme kuralları", docs/shared/common-code.md step C).
+// The 8 menu tabs (4 top, 4 bottom; docs/shared/ui-language.md "Tab rules", docs/shared/common-code.md step C).
 //
 // Two layers:
 // - Value bars, used by every menu: 56 x 3 px CYAN over GRAY_25 under the value, bipolar values fill from a GRAY_50

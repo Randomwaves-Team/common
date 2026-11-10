@@ -31,7 +31,7 @@ const Color kGray75 = 0xBDF7;
 const Color kCyanDark = 0x0166;
 const Color kMagentaDark = 0x4009;
 
-// Geometry (UI_REDESIGN.md 12, "Panel ortak ölçüleri")
+// Geometry (UI_REDESIGN.md 12, shared panel geometry)
 const int16_t kGraphX0 = 319;                         // = kMenuHeaderX[1]
 const int16_t kGraphX1 = 903;
 const int16_t kGraphY0 = 192;                         // layer 02 bottom line

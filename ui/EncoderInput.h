@@ -1,7 +1,7 @@
 #ifndef __UI_ENCODER_INPUT_H
 #define __UI_ENCODER_INPUT_H
 
-// Quadrature decoding and turn acceleration of the 8 tab encoders (docs/shared/ui-language.md, "Enkoder ve ADD";
+// Quadrature decoding and turn acceleration of the 8 tab encoders (docs/shared/ui-language.md, "Encoder and ADD";
 // docs/shared/common-code.md). capture() runs in the EXTI interrupt, poll() in the main loop. What a step does
 // (encoder function, resolution, which tabs accelerate) stays in the product.
 

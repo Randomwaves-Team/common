@@ -30,7 +30,7 @@ struct Label {
     bool line;              // right labels: dotted grid line at this y
 };
 
-const uint8_t kMaxLabels = 12;
+const uint8_t kMaxLabels = 20;   // METRONOME ruler: precount + measure, up to 2 x 10 beats
 
 struct Axes {
     Label right[kMaxLabels];

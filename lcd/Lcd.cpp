@@ -1155,6 +1155,8 @@ void Lcd::drawRect(uint16_t x, uint16_t y, uint32_t w, uint32_t h) {
 
     // 1. RECTANGLE OUTLINE DRAW
     // Draw rectangle border using four line primitives.
+    // Zero size: nothing to draw (x + w - 1 would also give an inverted address window)
+    if ((w == 0) || (h == 0)) return;
     if ((x < width) && (y < height)) {
         if ((x + w - 1) >= width) w = width - x;
         if ((y + h - 1) >= height) h = height - y;
@@ -1170,6 +1172,8 @@ void Lcd::fillRect(uint16_t x, uint16_t y, uint32_t w, uint32_t h) {
 
     // 1. RECTANGLE AREA FILL
     // Fill rectangle interior with foreground color.
+    // Zero size: nothing to draw (x + w - 1 would also give an inverted address window)
+    if ((w == 0) || (h == 0)) return;
     if ((x < width) && (y < height)) {
         if ((x + w - 1) >= width) w = width - x;
         if ((y + h - 1) >= height) h = height - y;
@@ -1649,6 +1653,8 @@ void Lcd::clearRect(uint16_t x, uint16_t y, uint32_t w, uint32_t h) {
 
     // 1. RECTANGLE CLEAR
     // Clear rectangle region with background color.
+    // Zero size: nothing to draw (x + w - 1 would also give an inverted address window)
+    if ((w == 0) || (h == 0)) return;
     if ((x < width) && (y < height)) {
         if ((x + w - 1) >= width) w = width - x;
         if ((y + h - 1) >= height) h = height - y;

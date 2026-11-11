@@ -151,6 +151,21 @@ void TabStrip::refresh(const Page& page) {
     for (uint8_t t = 0; t < 8; t++) drawTab(page, t, false);
 }
 
+void TabStrip::eraseExtras(uint8_t t, bool badge, bool alt) {
+    // A badge or ADD label drawn by an earlier page (or an earlier value) that the tab does not have now: blank the
+    // same area, else the old text ("MUTE", "LOCK", "STEP 00", "MOD --") stays after a menu change.
+    TabCache& c = tab_[t];
+    if (badge && (c.badgeLen > 0)) {
+        text(t, kBlank10, BLACK, FONT_05x07, RIGHT, c.badgeLen, kMenuTextBoxX[t], kMenuTextBoxY[t]);
+        c.badgeLen = 0;
+        c.badge[0] = '\0';
+    }
+    if (alt && (c.alt[0] != '\0')) {
+        text(t, kBlank10, GRAY_50, FONT_05x07, LEFT, kMenuHeaderTextSize, kMenuHeaderX[t], kMenuSignBoxY[t]);
+        c.alt[0] = '\0';
+    }
+}
+
 void TabStrip::drawTab(const Page& page, uint8_t t, bool force) {
     TabCache& c = tab_[t];
     const uint8_t id = page.param[t];
@@ -159,6 +174,7 @@ void TabStrip::drawTab(const Page& page, uint8_t t, bool force) {
 
     if (id == kNoParam) {
         if (force) {
+            eraseExtras(t, true, true);
             text(t, kBlank10, CYAN, FONT_07x09, LEFT, kMenuHeaderTextSize, kMenuHeaderX[t], kMenuHeaderY[t]);
             clearBar(t);
             text(t, "   ", CYAN, FONT_05x07, RIGHT, kMenuSignTextSize, kMenuSignBoxX[t], kMenuSignBoxY[t]);
@@ -174,10 +190,25 @@ void TabStrip::drawTab(const Page& page, uint8_t t, bool force) {
     const ParamDef& d = src.def(id);
     const int16_t v = src.get(id);
 
+    // badge (drawn after the header); an old badge the tab lost, or a longer old one, is blanked first: it sits at the
+    // end of the header row, so the header is drawn again over the blanked area
+    char b[9];
+    memset(b, ' ', 8);
+    b[8] = '\0';
+    uint8_t blen = 0;
+    uint16_t bcolor = BLACK;
+    const bool hasBadge = src.badge(id, b, blen, bcolor);
+    if (blen > 8) blen = 8;
+    bool headerDirty = force;
+    if ((c.badgeLen > 0) && (!hasBadge || (blen < c.badgeLen))) {
+        eraseExtras(t, true, false);
+        headerDirty = true;
+    }
+
     // header
     const char* h = src.header(id);
     const uint16_t hcolor = src.headerColor(id);
-    if (force || (h != c.header) || (hcolor != c.headerColor)) {
+    if (headerDirty || (h != c.header) || (hcolor != c.headerColor)) {
         text(t, h, hcolor, FONT_07x09, LEFT, kMenuHeaderTextSize, kMenuHeaderX[t], kMenuHeaderY[t]);
         c.header = h;
         c.headerColor = hcolor;
@@ -226,19 +257,11 @@ void TabStrip::drawTab(const Page& page, uint8_t t, bool force) {
     }
 
     // badge right of the header
-    char b[9];
-    memset(b, ' ', 8);
-    b[8] = '\0';
-    uint8_t blen = 0;
-    uint16_t bcolor = BLACK;
-    if (src.badge(id, b, blen, bcolor)) {
-        if (blen > 8) blen = 8;
-        if (force || (blen != c.badgeLen) || (bcolor != c.badgeColor) || (memcmp(b, c.badge, blen) != 0)) {
-            text(t, b, bcolor, FONT_05x07, RIGHT, blen, kMenuTextBoxX[t], kMenuTextBoxY[t]);
-            memcpy(c.badge, b, 9);
-            c.badgeLen = blen;
-            c.badgeColor = bcolor;
-        }
+    if (hasBadge && (headerDirty || (blen != c.badgeLen) || (bcolor != c.badgeColor) || (memcmp(b, c.badge, blen) != 0))) {
+        text(t, b, bcolor, FONT_05x07, RIGHT, blen, kMenuTextBoxX[t], kMenuTextBoxY[t]);
+        memcpy(c.badge, b, 9);
+        c.badgeLen = blen;
+        c.badgeColor = bcolor;
     }
 
     // ADD 2nd value: left aligned under the header on the sign row
@@ -247,11 +270,15 @@ void TabStrip::drawTab(const Page& page, uint8_t t, bool force) {
         memset(label, ' ', 10);
         label[10] = '\0';
         uint16_t acolor = GRAY_50;
-        if (src.alt(id, label, acolor) && (force || (acolor != c.altColor) || (strncmp(label, c.alt, 10) != 0))) {
+        if (!src.alt(id, label, acolor)) {
+            eraseExtras(t, false, true);
+        } else if (force || (acolor != c.altColor) || (strncmp(label, c.alt, 10) != 0)) {
             text(t, label, acolor, FONT_05x07, LEFT, kMenuHeaderTextSize, kMenuHeaderX[t], kMenuSignBoxY[t]);
             memcpy(c.alt, label, 11);
             c.altColor = acolor;
         }
+    } else {
+        eraseExtras(t, false, true);
     }
 }
 

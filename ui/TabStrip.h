@@ -79,6 +79,7 @@ class TabStrip {
 
     void segment(uint8_t tab, int16_t x0, int16_t x1, RGB16Color color);
     void drawTab(const Page& page, uint8_t tab, bool force);
+    void eraseExtras(uint8_t tab, bool badge, bool alt);
     void text(uint8_t tab, const char* s, RGB16Color color, LcdFont font, LcdAlign align, uint16_t len, uint16_t x, uint16_t y);
 };
 
